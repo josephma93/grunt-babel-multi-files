@@ -27,6 +27,7 @@ grunt.initConfig({
   babel_multi_files: {
     options: {
       // Task-specific options go here.
+      // this are merged with target-specific options
     },
     your_target: {
       // Target-specific file lists and/or options go here.
@@ -37,53 +38,41 @@ grunt.initConfig({
 
 ### Options
 
-#### options.separator
-Type: `String`
-Default value: `',  '`
-
-A string value that is used to do something with whatever.
-
-#### options.punctuation
-Type: `String`
-Default value: `'.'`
-
-A string value that is used to do something else with whatever else.
+See the Babel [options](https://babeljs.io/docs/en/options), except for: `filename`, `filenameRelative`, `sourceFileName` which are handled for you.
 
 ### Usage Examples
 
-#### Default Options
-In this example, the default options are used to do something with whatever. So if the `testing` file has the content `Testing` and the `123` file had the content `1 2 3`, the generated result would be `Testing, 1 2 3.`
-
 ```js
 grunt.initConfig({
-  babel_multi_files: {
-    options: {},
-    files: {
-      'dest/default_options': ['src/testing', 'src/123'],
-    },
-  },
-});
-```
-
-#### Custom Options
-In this example, custom options are used to do something else with whatever else. So if the `testing` file has the content `Testing` and the `123` file had the content `1 2 3`, the generated result in this case would be `Testing: 1 2 3 !!!`
-
-```js
-grunt.initConfig({
-  babel_multi_files: {
+  babel: {
     options: {
-      separator: ': ',
-      punctuation: ' !!!',
+      sourceMap: true,
+      presets: ['@babel/preset-env']
     },
-    files: {
-      'dest/default_options': ['src/testing', 'src/123'],
+    dev: {
+      files: {
+        'dev/app.js': [
+          'src/app.js',
+          'src/**/*.js'
+        ]
+      }
     },
-  },
+    dist: {
+      files: {
+        'dist/app.js': 'src/app.js'
+      }
+    }
+  }
 });
+
+grunt.loadNpmTasks('grunt-babel-multi-files');
+
+grunt.registerTask('default', ['babel']);
 ```
 
 ## Contributing
 In lieu of a formal styleguide, take care to maintain the existing coding style. Add unit tests for any new or changed functionality. Lint and test your code using [Grunt](http://gruntjs.com/).
 
 ## Release History
-_(Nothing yet)_
+ * 2019-06-14   v0.1.1   Documentation updates.
+ * 2019-06-14   v0.1.0   Initial release. 
