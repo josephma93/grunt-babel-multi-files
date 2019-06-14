@@ -69,9 +69,6 @@ module.exports = function(grunt) {
         ]
       },
       dynamic_mappings: {
-        // Grunt will search for "**/*.js" under "lib/" when the "uglify" task
-        // runs and build the appropriate src-dest file mappings then, so you
-        // don't need to update the Gruntfile when files are added or removed.
         files: [
           {
             expand: true,
