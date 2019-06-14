@@ -1,0 +1,12 @@
+# top-most EditorConfig file
+root = true
+
+# Set default charset
+# Unix-style newlines with
+[*]
+charset = utf-8
+end_of_line = lf
+
+# Newline ending every file
+[*.{js}]
+insert_final_newline = true
