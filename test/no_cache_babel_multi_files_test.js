@@ -100,5 +100,26 @@ exports.babel_multi_files = {
     }
 
     test.done();
+  },
+  dynamic_mappings_using_cache: function(test) {
+    const TEMP_CWD = "temp/dynamic_mappings/";
+    const filesGenerated = grunt.file.expand(
+      {
+        cwd: TEMP_CWD
+      },
+      ["**/*.js", `!${TEMP_CWD}nested/*_a.js`]
+    );
+
+    test.expect(filesGenerated.length);
+
+    for (const fileGenerated of filesGenerated) {
+      const actual = grunt.file.read(`${TEMP_CWD}${fileGenerated}`);
+      const expected = grunt.file.read(
+        `test/expected/dynamic_mappings/${fileGenerated}`
+      );
+      test.equal(actual, expected, `Should create "${fileGenerated}" properly`);
+    }
+
+    test.done();
   }
 };

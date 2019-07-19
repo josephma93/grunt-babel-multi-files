@@ -13,7 +13,8 @@ module.exports = function(grunt) {
   grunt.initConfig({
     // Before generating any new files, remove any previously-created files.
     clean: {
-      tests: ["tmp"]
+      temp: ["temp"],
+      cache: [".cache-dir"]
     },
 
     // Configuration to be run (and then tested).
@@ -79,12 +80,34 @@ module.exports = function(grunt) {
             extDot: "first"
           }
         ]
+      },
+      dynamic_mappings_using_cache: {
+        options: {
+          taskOptions: {
+            cache: true,
+            cacheName: "myCacheName", // Required when "cache" is enabled
+            cacheDirectory: ".cache-dir", // Optional
+            // eslint-disable-next-line max-len
+            cacheUsingCheckSum: true // Optional (See: https://github.com/royriojas/file-entry-cache#createcachename-directory-usechecksum)
+          }
+        },
+        files: [
+          {
+            expand: true,
+            cwd: "test/fixtures/",
+            src: ["**/*.js", "!nested/*_a.js"],
+            dest: "temp/dynamic_mappings/",
+            ext: ".compiled.js",
+            extDot: "first"
+          }
+        ]
       }
     },
 
     // Unit tests.
     nodeunit: {
-      tests: ["test/*_test.js"]
+      nonCacheTests: ["test/no_cache_*_test.js"],
+      cacheTests: ["test/cache_*_test.js"]
     }
   });
 
@@ -95,10 +118,24 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks("grunt-contrib-clean");
   grunt.loadNpmTasks("grunt-contrib-nodeunit");
 
-  // Whenever the "test" task is run, first clean the "tmp" dir, then run this
+  // Whenever the "test" task is run, first clean the "temp" dir, then run this
   // plugin's task(s), then test the result.
-  grunt.registerTask("test", ["clean", "babel_multi_files", "nodeunit"]);
+  grunt.registerTask("nonCacheTests", [
+    "clean:temp",
+    "babel_multi_files:compact_format_single_file",
+    "babel_multi_files:files_object_format",
+    "babel_multi_files:files_array_format",
+    "babel_multi_files:dynamic_mappings",
+    "nodeunit:nonCacheTests"
+  ]);
+  grunt.registerTask("testCache", [
+    "clean",
+    "babel_multi_files:dynamic_mappings_using_cache",
+    "nodeunit:cacheTests",
+    "babel_multi_files:dynamic_mappings_using_cache",
+    "nodeunit:cacheTests"
+  ]);
 
   // By default, run all tests.
-  grunt.registerTask("default", ["test"]);
+  grunt.registerTask("default", ["nonCacheTests"]);
 };

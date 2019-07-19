@@ -6,6 +6,8 @@
  * Licensed under the MIT license.
  */
 
+// To debug in powershell: node --inspect-brk $env:APPDATA"\npm\node_modules\grunt-cli\bin\grunt"
+
 "use strict";
 
 const BABEL_CORE_MODULE_NAME = "@babel/core";
@@ -17,6 +19,8 @@ const path = require("path");
 const { SourceNode, SourceMapConsumer } = require("source-map");
 const stripAnsi = require("strip-ansi");
 const _ = require("lodash");
+const fileEntryCache = require("file-entry-cache");
+const assert = require("assert");
 
 let babel;
 try {
@@ -49,6 +53,131 @@ function reflect(promise) {
 }
 
 module.exports = function(grunt) {
+  function makeTransformationChain({
+    taskConfig,
+    sourcePaths,
+    destinationFilePath
+  }) {
+    const { taskOptions } = taskConfig;
+
+    let cache,
+      reconcileCache = _.noop;
+
+    if (taskOptions.cache) {
+      assert.notEqual(
+        !!taskOptions.cacheName,
+        false,
+        `"options.cacheName" is required when "options.cache" is enabled`
+      );
+      cache = fileEntryCache.create(
+        taskOptions.cacheName,
+        taskOptions.cacheDirectory,
+        taskOptions.cacheUsingCheckSum
+      );
+      // Persists cache to disk after all files have been processed
+      reconcileCache = _.after(sourcePaths.length, () => cache.reconcile());
+    }
+
+    return new _(sourcePaths)
+      .chain()
+      .filter(function warnAndRemoveInvalidSourceFiles(sourceFilePath) {
+        const fileExists = grunt.file.exists(sourceFilePath);
+
+        if (!fileExists) {
+          grunt.log.warn(
+            `Source file "${chalk.cyan(sourceFilePath)}" not found.`
+          );
+        }
+
+        return fileExists;
+      })
+      .map(unixifyPath)
+      .map(function createTransformationInfoObj(sourceFilePath) {
+        return {
+          sourceFilePath,
+          transformPromise: null,
+          transformResult: {
+            code: null,
+            map: null
+          }
+        };
+      })
+      .each(function logFileDetected(transformationInfoObj) {
+        grunt.verbose.writeln(
+          `Transforming "${chalk.cyan(
+            transformationInfoObj.sourceFilePath
+          )}"...`
+        );
+      })
+      .map(function transformFile(transformationInfoObj) {
+        const { sourceFilePath } = transformationInfoObj,
+          babelOptions = Object.assign({}, taskConfig, {
+            // Adjust path for babel
+            sourceFileName: unixifyPath(
+              path.relative(path.dirname(destinationFilePath), sourceFilePath)
+            )
+          }),
+          transpileWithBabel = () =>
+            babel.transformFileAsync(sourceFilePath, babelOptions);
+
+        // Don't send task options to babel
+        delete babelOptions.taskOptions;
+
+        let transformPromise;
+
+        if (cache) {
+          const fileDescriptor = cache.getFileDescriptor(sourceFilePath);
+
+          if (fileDescriptor.changed) {
+            transformPromise = transpileWithBabel().then(
+              function storeTransformResultInCache(transformResult) {
+                return (fileDescriptor.meta.data = transformResult);
+              }
+            );
+          } else {
+            transformPromise = Promise.resolve(fileDescriptor.meta.data);
+          }
+        } else {
+          transformPromise = transpileWithBabel();
+        }
+
+        transformationInfoObj.transformPromise = transformPromise;
+
+        return transformationInfoObj;
+      })
+      .each(function moveTransformResultToInfoObj(transformationInfoObj) {
+        transformationInfoObj.transformPromise = transformationInfoObj.transformPromise.then(
+          function moveResult(transformResult) {
+            transformationInfoObj.transformResult = transformResult;
+            return transformResult;
+          }
+        );
+      })
+      .each(function logResultOfTransformation(transformationInfoObj) {
+        transformationInfoObj.transformPromise = transformationInfoObj.transformPromise.then(
+          transformed => {
+            grunt.verbose.ok(
+              `File "${chalk.cyan(
+                transformationInfoObj.sourceFilePath
+              )}" transformed.`
+            );
+            reconcileCache();
+            return transformed;
+          },
+          err => {
+            grunt.log.error(
+              `Transformation of file "${chalk.cyan(
+                transformationInfoObj.sourceFilePath
+              )}" failed.`
+            );
+            grunt.log.errorlns(stripAnsi(err.message));
+            reconcileCache();
+            return Promise.reject(err);
+          }
+        );
+      });
+  }
+
   function buildTransformInfo(transformResults) {
     const withMap = [];
     const withoutMap = [];
@@ -162,93 +291,35 @@ module.exports = function(grunt) {
     const taskOptions = grunt.config.get("babel_multi_files").options || {};
     const targetOptions = _.merge({}, this.options());
 
-    const options = _.merge(_.cloneDeep(taskOptions), targetOptions);
-    delete options.filename;
-    delete options.filenameRelative;
-    options.caller = Object.assign(
+    const taskConfig = _.merge(
+      _.cloneDeep(taskOptions),
+      {
+        taskOptions: {
+          cache: false
+        }
+      },
+      targetOptions
+    );
+    delete taskConfig.filename;
+    delete taskConfig.filenameRelative;
+    taskConfig.caller = Object.assign(
       {
         name: TASK_NAME
       },
-      options.caller
+      taskConfig.caller
     );
 
     // Iterate over all specified file groups.
-    const filePromises = this.files.map(function makeDestinationFile(filePair) {
+    const filePromises = this.files.map(filePair => {
       const destinationFilePath = unixifyPath(filePair.dest);
 
       //#region chain
-      const sourcePathsTransformationChain = new _(filePair.src)
-        .chain()
-        .filter(function warnAndRemoveInvalidSourceFiles(sourceFilePath) {
-          const fileExists = grunt.file.exists(sourceFilePath);
-
-          if (!fileExists) {
-            grunt.log.warn(
-              `Source file "${chalk.cyan(sourceFilePath)}" not found.`
-            );
-          }
-
-          return fileExists;
-        })
-        .map(unixifyPath)
-        .map(function createTransformationInfoObj(sourceFilePath) {
-          return {
-            sourceFilePath,
-            transformPromise: null,
-            transformResult: {
-              code: null,
-              map: null
-            }
-          };
-        })
-        .each(function logFileDetected(transformationInfoObj) {
-          grunt.verbose.writeln(
-            `Transforming "${chalk.cyan(
-              transformationInfoObj.sourceFilePath
-            )}"...`
-          );
-        })
-        .map(function transformFile(transformationInfoObj) {
-          const { sourceFilePath } = transformationInfoObj;
-          const opts = Object.assign({}, options);
-          opts.sourceFileName = unixifyPath(
-            path.relative(path.dirname(destinationFilePath), sourceFilePath)
-          );
-          transformationInfoObj.transformPromise = babel.transformFileAsync(
-            sourceFilePath,
-            opts
-          );
-          return transformationInfoObj;
-        })
-        .each(function moveTransformResultToInfoObj(transformationInfoObj) {
-          transformationInfoObj.transformPromise = transformationInfoObj.transformPromise.then(
-            function moveResult(transformResult) {
-              transformationInfoObj.transformResult = transformResult;
-              return transformResult;
-            }
-          );
-        })
-        .each(function logResultOfTransformation(transformationInfoObj) {
-          transformationInfoObj.transformPromise = transformationInfoObj.transformPromise.then(
-            transformed => {
-              grunt.verbose.ok(
-                `File "${chalk.cyan(
-                  transformationInfoObj.sourceFilePath
-                )}" transformed.`
-              );
-              return transformed;
-            },
-            err => {
-              grunt.log.error(
-                `Transformation of file "${chalk.cyan(
-                  transformationInfoObj.sourceFilePath
-                )}" failed.`
-              );
-              grunt.log.errorlns(stripAnsi(err.message));
-              return Promise.reject(err);
-            }
-          );
-        });
+      const sourcePathsTransformationChain = makeTransformationChain({
+        taskData: this.data,
+        taskConfig,
+        sourcePaths: filePair.src,
+        destinationFilePath
+      });
       //#endregion
 
       // Execute method chain
