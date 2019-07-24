@@ -27,24 +27,16 @@ exports.babel_multi_files = {
     // setup here if necessary
     done();
   },
-  dynamic_mappings_using_cache: function(test) {
-    const TEMP_CWD = "temp/dynamic_mappings/";
-    const filesGenerated = grunt.file.expand(
-      {
-        cwd: TEMP_CWD
-      },
-      ["**/*.js", `!${TEMP_CWD}nested/*_a.js`]
-    );
+  files_array_format_using_cache: function(test) {
+    test.expect(2);
 
-    test.expect(filesGenerated.length);
+    let actual = grunt.file.read("temp/files_array_format_a.js");
+    let expected = grunt.file.read("test/expected/files_array_format_a.js");
+    test.equal(actual, expected, "Should create first file properly");
 
-    for (const fileGenerated of filesGenerated) {
-      const actual = grunt.file.read(`${TEMP_CWD}${fileGenerated}`);
-      const expected = grunt.file.read(
-        `test/expected/dynamic_mappings/${fileGenerated}`
-      );
-      test.equal(actual, expected, `Should create "${fileGenerated}" properly`);
-    }
+    actual = grunt.file.exists("temp/files_array_format_a.js.map");
+    expected = false;
+    test.equal(actual, expected, "Should not create map file for first file");
 
     test.done();
   }

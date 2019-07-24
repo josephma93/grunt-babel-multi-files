@@ -309,6 +309,14 @@ module.exports = function(grunt) {
       taskConfig.caller
     );
 
+    if (taskConfig.taskOptions.cache) {
+      assert.equal(
+        this.files.length,
+        1,
+        `The use of cache is restricted to a single output file per target configuration`
+      );
+    }
+
     // Iterate over all specified file groups.
     const filePromises = this.files.map(filePair => {
       const destinationFilePath = unixifyPath(filePair.dest);

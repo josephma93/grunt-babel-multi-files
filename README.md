@@ -95,7 +95,24 @@ grunt.initConfig({
                 ext: ".compiled.js",
                 extDot: "first"
             }]
-        }
+        },
+        using_cache_AKA_incremental_build: {
+            /**
+             * Enabling the cache allows to transpile only the files that changed instead of all files every time
+             * this makes the transpile process run faster.
+             * Warning: Current implementation is meant to handle a single destination per target
+             */
+            options: {
+                taskOptions: {
+                    cache: true,
+                    cacheName: "myCacheName",     // Required when "cache" is enabled
+                    cacheDirectory: ".cache-dir", // Optional
+                    cacheUsingCheckSum: true      // Optional (See: https://github.com/royriojas/file-entry-cache#createcachename-directory-usechecksum)
+                }
+            },
+            src: ["test/fixtures/*_first.js", "test/fixtures/*.js"],
+            dest: "temp/files_array_format_a.js"
+      }
     }
 });
 
@@ -108,6 +125,7 @@ grunt.registerTask('default', ['babel_multi_files']);
 In lieu of a formal styleguide, take care to maintain the existing coding style. Add unit tests for any new or changed functionality. Lint and test your code using [Grunt](http://gruntjs.com/).
 
 ## Release History
+ * 2019-06-14   v0.2.0   Introducing file caching.
  * 2019-06-14   v0.1.2   More documentation updates.
  * 2019-06-14   v0.1.1   Documentation updates.
  * 2019-06-14   v0.1.0   Initial release. 

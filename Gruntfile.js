@@ -81,7 +81,7 @@ module.exports = function(grunt) {
           }
         ]
       },
-      dynamic_mappings_using_cache: {
+      using_cache_AKA_incremental_build: {
         options: {
           taskOptions: {
             cache: true,
@@ -91,16 +91,8 @@ module.exports = function(grunt) {
             cacheUsingCheckSum: true // Optional (See: https://github.com/royriojas/file-entry-cache#createcachename-directory-usechecksum)
           }
         },
-        files: [
-          {
-            expand: true,
-            cwd: "test/fixtures/",
-            src: ["**/*.js", "!nested/*_a.js"],
-            dest: "temp/dynamic_mappings/",
-            ext: ".compiled.js",
-            extDot: "first"
-          }
-        ]
+        src: ["test/fixtures/*_first.js", "test/fixtures/*.js"],
+        dest: "temp/files_array_format_a.js"
       }
     },
 
@@ -108,7 +100,21 @@ module.exports = function(grunt) {
     nodeunit: {
       nonCacheTests: ["test/no_cache_*_test.js"],
       cacheTests: ["test/cache_*_test.js"]
+    },
+
+    watch: {
+      cacheTest: {
+        options: {
+          spawn: false
+        },
+        files: ["test/fixtures/*_first.js", "test/fixtures/*.js"],
+        tasks: ["babel_multi_files:using_cache_AKA_incremental_build"]
+      }
     }
+  });
+
+  grunt.event.on("watch", function(action, filePath, target) {
+    grunt.log.writeln(target + ": " + filePath + " has " + action);
   });
 
   // Actually load this plugin's task(s).
@@ -117,6 +123,7 @@ module.exports = function(grunt) {
   // These plugins provide necessary tasks.;
   grunt.loadNpmTasks("grunt-contrib-clean");
   grunt.loadNpmTasks("grunt-contrib-nodeunit");
+  grunt.loadNpmTasks("grunt-contrib-watch");
 
   // Whenever the "test" task is run, first clean the "temp" dir, then run this
   // plugin's task(s), then test the result.
@@ -130,10 +137,9 @@ module.exports = function(grunt) {
   ]);
   grunt.registerTask("testCache", [
     "clean",
-    "babel_multi_files:dynamic_mappings_using_cache",
+    "babel_multi_files:using_cache_AKA_incremental_build",
     "nodeunit:cacheTests",
-    "babel_multi_files:dynamic_mappings_using_cache",
-    "nodeunit:cacheTests"
+    "watch:cacheTest"
   ]);
 
   // By default, run all tests.
