@@ -1,7 +1,7 @@
 {
   "name": "grunt-babel-multi-files",
   "description": "Grunt plugin to enable the transpilation of multiple javascript files using babel into a single destiny file or multiple destiny files.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "homepage": "https://github.com/josephma93/grunt-babel-multi-files",
   "author": {
     "name": "Joseph Montero",
